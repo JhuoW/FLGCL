@@ -65,7 +65,7 @@ class ClientModule:
     def switch_state(self, client_id):
         self.client_id = client_id
         self.loader.switch(client_id)  # 切换到这个client，从文件中读取这个client的子图
-        # self.logger.switch(client_id)
+        self.logger.switch(client_id)  # 切换到当前这个client
         if self.is_initialized():
             time.sleep(0.1)
             self.load_state()
@@ -92,17 +92,16 @@ class ClientModule:
         loader = self.loader.patition_loader  # client loader， 每次加载一个client
 
         with torch.no_grad():
-            
-
             target, pred, loss = [], [], []
-            for _, batch in enumerate(loader):  # 加载一个client的数据
-                batch = batch.cuda(self.gpu_id)
+            for _, batch in enumerate(loader):  # 加载一个client的subgraph
+                batch = batch.cuda(self.gpu_id)  
                 mask = batch.test_mask if mode == 'test' else batch.val_mask
-                y_hat, lss = self.validation_step(batch, mask)
-                pred.append(y_hat[mask])
-                target.append(batch.y[mask])
+                y_hat, lss = self.validation_step(batch, mask)  
+                pred.append(y_hat[mask])  # 预测logits
+                target.append(batch.y[mask])  # 真实label
                 loss.append(lss)
-            acc = self.accuracy(torch.stack(pred).view(-1, self.args.n_clss), torch.stack(target).view(-1))
+            # 预测logits, 真实stacked labels
+            acc = self.accuracy(torch.stack(pred).view(-1, self.config['num_cls']), torch.stack(target).view(-1))
         return acc, np.mean(loss)
 
     @torch.no_grad()
@@ -134,14 +133,14 @@ class ClientModule:
         self.local_model.eval()
         y_hat = self.local_model(batch)
         if torch.sum(mask).item() == 0: return y_hat, 0.0
-        lss = F.cross_entropy(y_hat[mask], batch.y[mask])
+        lss = self.loss(y_hat[mask], batch.y[mask])
         return y_hat, lss.item()
 
     @torch.no_grad()
     def accuracy(self, preds, targets):
         if targets.size(0) == 0: return 1.0
         with torch.no_grad():
-            preds = preds.max(1)[1]
+            preds = preds.max(1)[1] # 每行的最大值id
             acc = preds.eq(targets).sum().item() / targets.size(0)
         return acc
 
@@ -151,7 +150,8 @@ class ClientModule:
     def save_log(self):
         save(self.args.log_path, f'client_{self.client_id}.txt', {
             'args': self._args,
-            'log': self.log
+            'log': self.log,
+            'config': self.config
         })
 
     def get_optimizer_state(self, optimizer):
@@ -164,3 +164,15 @@ class ClientModule:
         return state
 
 
+class ServerModule:
+    def __init__(self, args, config, sd, gpu_id):
+        self.args = args
+        self._args = vars(self.args)
+        self.config = config
+        self.sd = sd
+        self.gpu_id = gpu_id
+        self.logger = Logger(args=self.args, gpu_id = self.gpu_id, is_server = True)
+    
+
+    def aggregate(self, local_weights, ratio=None):
+        raise NotImplementedError()

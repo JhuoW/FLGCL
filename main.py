@@ -53,3 +53,4 @@ if __name__ == '__main__':
     now = datetime.now().strftime("%Y%m%d_%H%M%S")
     trial = osp.join(f'{args.dataset}', f'{args.mode}', f'{args.n_clients}', f'{now}_{args.model}')
     args.checkpt_path = f'checkpoints/{trial}'
+    args.log_path = f'logs/{trial}'

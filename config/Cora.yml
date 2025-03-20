@@ -23,6 +23,7 @@ FedAvg:
   dropout1: 0.5
   dropout2: 0.5
    
+  hidden_heads: 8
 
   local_epochs: 200
   local_lr: 5.0e-4

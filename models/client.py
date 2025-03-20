@@ -1,58 +1,88 @@
 from models.federated import ClientModule
-from models.nets import GRACE
+from models.nets import NLGNN
 import torch
 import time
+import torch.nn as nn
+from misc.utils import *
 
 class Client(ClientModule):
     def __init__(self, args, config, work_id, gpu_id, sd):
         super(Client, self).__init__(args, work_id, gpu_id, sd)
-        self.local_model = GRACE(config).cuda()
+        self.local_model = NLGNN(config).cuda()
         self.parameters = list(self.local_model.parameters())
-        self.config = config
 
     def init_state(self):
         self.optimizer = torch.optim.Adam(self.parameters, lr = self.config['local_lr'], weight_decay=self.config['local_wd'])
+        self.loss_func = nn.CrossEntropyLoss()
         self.log = {'lr': [],'train_lss': [],
-                    'ep_local_val_acc_avg': [], 'ep_local_val_acc_std': [],
-                    'ep_local_val_f1ma_avg': [], 'ep_local_val_f1ma_std': [],
-                    'rnd_local_val_acc_avg': [], 'rnd_local_val_acc_std': [],
-                    'rnd_local_val_f1ma_avg': [], 'rnd_local_val_f1ma_std': [],
+                    'ep_local_val_acc': [], 'ep_local_val_loss': [],
+                    'rnd_local_val_acc': [], 'rnd_local_val_loss': [],
 
-                    'ep_local_test_acc_avg': [], 'ep_local_test_acc_std': [],
-                    'ep_local_test_f1ma_avg': [], 'ep_local_test_f1ma_std': [],
-                    'rnd_local_test_acc_avg': [], 'rnd_local_test_acc_std': [],
-                    'rnd_local_test_f1ma_avg': [], 'rnd_local_test_f1ma_std': []}    
+                    'ep_local_test_acc': [], 'ep_local_test_loss': [],
+                    'rnd_local_test_acc': [], 'rnd_local_test_loss': []}    
 
     def save_state(self):
-        return
+        torch.save(self.args.checkpt_path, f'{self.client_id}_state.pt', {
+            'model': get_state_dict(self.local_model),
+            'optimizer': self.optimizer.state_dict(),
+            'log': self.log
+        })
+    
+    def load_state(self):
+        state = torch.load(osp.join(self.args.checkpt_path, f'{self.client_id}_state.pt'))
+        set_state_dict(self.local_model, state['model'], self.gpu_id) # 加载模型参数
+        self.optimizer.load_state_dict(state['optimizer'])  # 加载优化器参数
+        self.log = state['log']  # 加载日志
 
 
     def train_client(self):
         st = time.time()
-        val_local_results = self.eval_LR(mode='val')
-        test_local_results = self.eval_LR(mode='test')
-        self.logger.print_fl(  # 打印当前client的训练信息
+        # val_local_results = self.eval_LR(mode='val')
+        # test_local_results = self.eval_LR(mode='test')
+        val_local_acc, val_local_loss = self.validate(mode = 'val')
+        test_local_acc, test_local_loss = self.validate(mode = 'test')        
+        self.logger.print_fl(    # 打印当前client的信息
             f'rnd: {self.curr_rnd+1}, ep: {0}, '
-            f'local_val_acc = {val_local_results['acc_avg']:.4f} +- {val_local_results['acc_std']:.4f}, '
-            f'local_val_f1ma = {val_local_results['f1ma_avg']:.4f} +- {val_local_results['f1ma_std']:.4f},'
-            f'lr: {self.get_lr()} ({time.time()-st:.2f}s)'
+            f'val_local_acc: {val_local_acc.item():.4f}, val_local_loss: {val_local_loss:.4f}, lr: {self.get_lr()} '
         )
-        self.log['ep_local_val_acc_avg'].append(val_local_results['acc_avg'])
-        self.log['ep_local_val_acc_std'].append(val_local_results['acc_std'])
-        self.log['ep_local_val_f1ma_avg'].append(val_local_results['f1ma_avg'])       
-        self.log['ep_local_val_f1ma_std'].append(val_local_results['f1ma_std'])  
+        self.log['ep_local_val_acc'].append(val_local_acc)
+        self.log['ep_local_val_loss'].append(val_local_loss)
+        self.log['ep_local_test_acc'].append(test_local_acc)
+        self.log['ep_local_test_loss'].append(test_local_loss)
 
-        self.log['ep_local_test_acc_avg'].append(test_local_results['acc_avg'])
-        self.log['ep_local_test_acc_std'].append(test_local_results['acc_std'])
-        self.log['ep_local_test_f1ma_avg'].append(test_local_results['f1ma_avg'])       
-        self.log['ep_local_test_f1ma_std'].append(test_local_results['f1ma_std'])  
+        self.local_model.reset_parameters()
 
         for ep in range(self.config['local_epochs']):
             st = time.time()
             self.local_model.train()
             for _, batch in enumerate(self.loader.patition_loader):
                 self.optimizer.zero_grad()
-                batch = batch.cuda()
+                batch = batch.cuda()  # 一个batch是一个client的子图
+                logits = self.local_model(batch)  # logits
+                loss = self.loss_func(logits[batch.train_mask], batch.y[batch.train_mask]) 
+                loss.backward()
+                self.optimizer.step()
+            val_local_acc, val_local_loss = self.validate(mode = 'val')
+            test_local_acc, test_local_loss = self.validate(mode = 'test')
+            self.logger.print_fl(f'rnd:{self.curr_rnd+1}, ep:{ep+1}, '
+                                 f'val_local_loss: {val_local_loss.item():.4f}, val_local_acc: {val_local_acc:.4f},'
+                                 f'test_local_acc: {test_local_acc:.4f}, lr: {self.get_lr()}')
+            self.log['train_lss'].append(loss.item())
+            self.log['ep_local_val_acc'].append(val_local_acc)
+            self.log['ep_local_val_loss'].append(val_local_loss)
+            self.log['ep_local_test_acc'].append(test_local_acc)
+            self.log['ep_local_test_loss'].append(test_local_loss)
+
+        self.log['rnd_local_val_acc'].append(val_local_acc)
+        self.log['rnd_local_val_loss'].append(val_local_loss)
+        self.log['rnd_local_test_acc'].append(test_local_acc)
+        self.log['rnd_local_test_loss'].append(test_local_loss)
+        self.save_log()
+
                 
-                
-        return
+
+    def transfer_to_server(self):
+        self.sd[self.client_id] = {
+            'model': get_state_dict(self.local_model),
+            'train_size': len(self.loader.partition),
+        }

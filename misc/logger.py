@@ -25,7 +25,7 @@ def last_len(s):
 class Logger:
 	'''auto log
 	'''
-	def __init__(self , args, mode = [print] , log_path = None , append = ["clock"] , line_length = 90, gpu_id = 0,is_server=False):
+	def __init__(self , args, mode = [print] , log_path = None , append = ["clock"] , line_length = 90, gpu_id = 0, is_server=False):
 		if log_path:
 			self.log_fil = open(log_path , "w" , encoding = "utf-8")
 		else:
@@ -88,7 +88,7 @@ class Logger:
 		now = time.strftime("%Y-%m-%d %H:%M:%S" , time.localtime() )
 		msg = f'[{now}]'
 		msg += f'[{self.args.model}]'
-		msg += f'[g:{self.gpu_id}]'
-		msg += f'[server]'if self.is_server else f'[c:{self.client_id}]'
+		msg += f'[gpu:{self.gpu_id}]'
+		msg += f'[server]'if self.is_server else f'[client:{self.client_id}]'
 		msg += f' {message}'
 		print(msg)

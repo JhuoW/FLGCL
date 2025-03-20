@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_geometric.nn import GCNConv
+from torch_geometric.nn import GCNConv, GATConv
 from importlib import import_module
 import torch_geometric.nn as pyg_nn
 
@@ -84,11 +84,11 @@ class GRACE(nn.Module):
         ret = (l1 + l2) * 0.5
         ret = ret.mean() if mean else ret.sum()
         return ret
-    
 
-class NLGCN(nn.Module):
+
+class NLGNN(nn.Module):
     def __init__(self, config):
-        super(NLGCN, self).__init__()
+        super(NLGNN, self).__init__()
         n_gnn_layers = config['n_gnn_layers']
         self.gnn_list = nn.ModuleList()
         out_dim = config['num_cls']
@@ -96,7 +96,14 @@ class NLGCN(nn.Module):
         for i in range(n_gnn_layers):
             if i == n_gnn_layers-1:
                 hid_dim = out_dim
-            self.gnn_list.append(GCNConv(in_dim, hid_dim))
+
+            if config.get('BaseGNN', 'GCNConv') == 'GCNConv':
+                self.gnn_list.append(GCNConv(in_dim, hid_dim))
+            elif config.get('BaseGNN', 'GCNConv') == 'GATConv':
+                if i == 0:
+                    self.gnn_list.append(GATConv(in_dim, hid_dim, heads = config['hidden_heads'], dropout=config['dropout1']))
+                else:
+                    self.gnn_list.append(GATConv(hid_dim * config['hidden_heads'], out_dim, heads = 1, dropout=config['dropout1'], concat = False))
             in_dim = hid_dim
         self.proj = nn.Linear(out_dim, 1)
         self.kernel = config['kernel']
@@ -123,16 +130,27 @@ class NLGCN(nn.Module):
         h = F.dropout(h, p=self.config['dropout1'], training=self.training)
         h1 = self.gnn_list[-1](h, edge_index) # GNN 输出的node embeddings
         g_score = self.proj(h1)  # shape: [num_nodes, 1]   (N x D) (D x 1) -> (N x 1)  表示每个节点与 (Dx1)维向量的相似度 
+        # learn the optimal sorting
         g_score_sorted, sorted_idx = torch.sort(g_score, dim=0)  # 将节点按照与(D x 1)维的Auxiliary vector 按升序排列 driving a good sorting
-        _, inverse_idx = torch.sort(sorted_idx, dim=0) # 将排序后的节点按照原来的顺序排列 即原始节点的index 从1 到N
+        # sorted_idx = [2 3 1] -> [1 2 3]   inverse_idx: [3 1 2]   
+        _, inverse_idx = torch.sort(sorted_idx, dim=0) # 将排序后的节点按照原来的顺序排列 即原始节点的index 从1 到N  
         
         # 在得到当前依据排名的node embedding h1[sorted_idx]后
-        # 需要自适应调整
+        # 一个感受野中的节点tend to have similar attention scores, 所以对attention scores做聚合
         sorted_x = g_score_sorted * h1[sorted_idx].squeeze()   # 按照相似度排序后的节点embedding 乘以 每个节点与Auxiliary vector的attention score
         
-        sorted_x = torch.transpose(sorted_x, 0, 1).unsqueeze(0)
+        sorted_x = torch.transpose(sorted_x, 0, 1).unsqueeze(0)  # [1, D, N]  为了做conv1d  D个通道，每个通道N维，每个通道上都要做1d卷积， 再pooling
 
+        # 1d convolution
+        sorted_x = F.relu(self.conv1d(sorted_x)) 
+        sorted_x = F.dropout(sorted_x, p=self.config['dropout2'], training=self.training)
+        sorted_x = self.conv1d_2(sorted_x)
+        sorted_x = torch.transpose(sorted_x.squeeze(), 0, 1)  # [num_nodes, num_classes]
+        h2       = sorted_x[inverse_idx]  # 恢复到原始的node idx
 
+        out = torch.cat([h1, h2], dim=1)
+        out = self.lin(out)
+        return out
 
 
 

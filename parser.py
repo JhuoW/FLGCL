@@ -14,6 +14,7 @@ class Parser:
         self.parser.add_argument('--data_path', type = str, default='datasets')
         self.parser.add_argument('--mode', type=str, default='disjoint', choices=['disjoint', 'overlapping'])
         self.parser.add_argument('--n_clients', type=int, default=10)
+        self.parser.add_argument('--log_path', type=str, default='log/')
         # self.parser.add_argument('--checkpt_path', type=str, default='checkpoint/')
 
     
