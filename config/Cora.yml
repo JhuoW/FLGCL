@@ -1,0 +1,31 @@
+dataset: "AIDS700nef"
+
+
+dataset:
+  # for disjoint
+  ratio_train: 0.2
+  seed: 1234
+  clients: [5, 10, 20]
+  # for overlapping
+  comms: [2, 6, 10]
+  n_clien_per_comm: 5
+
+
+
+FedAvg:
+  gnn_hid_dim: 48
+  gnn_out_dim: 128
+  gnn_act: 'relu'
+  BaseGNN: 'GCNConv'
+  n_gnn_layers: 2
+  num_proj_hidden: 128
+  kernel: 5
+  dropout1: 0.5
+  dropout2: 0.5
+   
+
+  local_epochs: 200
+  local_lr: 5.0e-4
+  local_wd: 1.0e-5
+  BaseGCL: 'grace'
+  proj_act: 'elu'
