@@ -10,6 +10,19 @@ import pathlib
 from datahelper.generators import DataBuild
 import datetime
 
+def main(args, config):
+    if args.model == 'FedAvg':
+        from models.server import Server
+        from models.client import Client
+    elif args.model == 'FedAux':
+        from models.server import Server
+        from models.client import Client
+    else:
+        raise ValueError('No Model')
+    
+    
+
+
 if __name__ == '__main__':
     args = Parser().parse()
     torch.cuda.set_device(args.gpu_id)

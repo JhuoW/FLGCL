@@ -62,7 +62,7 @@ class ClientModule:
         self.config = config
         self.logger = Logger(args=self.args, gpu_id = self.gpu_id, is_server = False)
        
-    def switch_state(self, client_id):
+    def switch_state(self, client_id):  
         self.client_id = client_id
         self.loader.switch(client_id)  # 切换到这个client，从文件中读取这个client的子图
         self.logger.switch(client_id)  # 切换到当前这个client
@@ -175,4 +175,19 @@ class ServerModule:
     
 
     def aggregate(self, local_weights, ratio=None):
-        raise NotImplementedError()
+        # ratio = [1/10, 1/10, 1/10,..., 1/10]
+        # local_weights: [weights of client1, weights of client2, ...]
+        # 用于得到client端的训练参数名
+        aggr_theta = OrderedDict([(k, None) for k in local_weights[0].keys()])   # 第一个client的参数模型的key（参数名）
+
+        if ratio is not None:
+            for name, param in aggr_theta.items(): # 遍历所有参数名
+                # 遍历每个client的参数，得到client id j和参数theta
+                # theta[name]表示每个client的名称为name的参数
+                # 对所有client的name 参数做的值做加权求和，赋值个aggr_theta的name下
+                aggr_theta[name] = np.sum([theta[name] * ratio[j] for j, theta in enumerate(local_weights)], 0)
+        else:
+            ratio = 1 / len(local_weights)
+            for name, param in aggr_theta.items():
+                aggr_theta[name] = aggr_theta[name] = np.sum([theta[name] * ratio for _, theta in enumerate(local_weights)], 0)
+        return aggr_theta

@@ -7,8 +7,13 @@ from misc.utils import *
 
 class Client(ClientModule):
     def __init__(self, args, config, work_id, gpu_id, sd):
+        '''
+        work_id: 处理当前client的线程id
+        gpu_id: 当前client使用的gpu id
+        sd: 当前client中和server shared data (对于FedAvg来说是模型参数和模型size)
+        '''
         super(Client, self).__init__(args, work_id, gpu_id, sd)
-        self.local_model = NLGNN(config).cuda()
+        self.local_model = NLGNN(config).cuda(self.gpu_id)
         self.parameters = list(self.local_model.parameters())
 
     def init_state(self):
@@ -20,29 +25,46 @@ class Client(ClientModule):
 
                     'ep_local_test_acc': [], 'ep_local_test_loss': [],
                     'rnd_local_test_acc': [], 'rnd_local_test_loss': []}    
+        
 
-    def save_state(self):
-        torch.save(self.args.checkpt_path, f'{self.client_id}_state.pt', {
-            'model': get_state_dict(self.local_model),
-            'optimizer': self.optimizer.state_dict(),
-            'log': self.log
-        })
-    
     def load_state(self):
         state = torch.load(osp.join(self.args.checkpt_path, f'{self.client_id}_state.pt'))
         set_state_dict(self.local_model, state['model'], self.gpu_id) # 加载模型参数
         self.optimizer.load_state_dict(state['optimizer'])  # 加载优化器参数
-        self.log = state['log']  # 加载日志
+        self.log = state['log']  # 加载日志        
+
+    def save_state(self):
+        torch.save(self.args.checkpt_path, f'{self.client_id}_state.pt', {
+            'local_model': get_state_dict(self.local_model),
+            'optimizer': self.optimizer.state_dict(),
+            'log': self.log
+        })
+
+    def on_receive_message(self, curr_comm):
+        self.curr_comm = curr_comm
+        # fedavg
+        self.update(self.sd['global']) # 传入global server的信息 并将global的模型信息拷贝给local模型
+
+    def update(self, received):
+        # received['model']是global server的模型参数
+        set_state_dict(self.local_model, received['model'], self.gpu_id, skip_stat = True) # 将server端的global参数赋值给client
+
+    def on_communication_begin(self):
+        self.train_client()
+        self.transfer_to_server()
 
 
     def train_client(self):
+        '''
+        进行当前client的一次communication的训练
+        '''
         st = time.time()
         # val_local_results = self.eval_LR(mode='val')
         # test_local_results = self.eval_LR(mode='test')
         val_local_acc, val_local_loss = self.validate(mode = 'val')
         test_local_acc, test_local_loss = self.validate(mode = 'test')        
         self.logger.print_fl(    # 打印当前client的信息
-            f'rnd: {self.curr_rnd+1}, ep: {0}, '
+            f'communication: {self.curr_comm+1}, ep: {0}, '
             f'val_local_acc: {val_local_acc.item():.4f}, val_local_loss: {val_local_loss:.4f}, lr: {self.get_lr()} '
         )
         self.log['ep_local_val_acc'].append(val_local_acc)
@@ -57,14 +79,14 @@ class Client(ClientModule):
             self.local_model.train()
             for _, batch in enumerate(self.loader.patition_loader):
                 self.optimizer.zero_grad()
-                batch = batch.cuda()  # 一个batch是一个client的子图
+                batch = batch.cuda(self.gpu_id)  # 一个batch是一个client的子图
                 logits = self.local_model(batch)  # logits
                 loss = self.loss_func(logits[batch.train_mask], batch.y[batch.train_mask]) 
                 loss.backward()
                 self.optimizer.step()
             val_local_acc, val_local_loss = self.validate(mode = 'val')
             test_local_acc, test_local_loss = self.validate(mode = 'test')
-            self.logger.print_fl(f'rnd:{self.curr_rnd+1}, ep:{ep+1}, '
+            self.logger.print_fl(f'communication:{self.curr_comm+1}, ep:{ep+1}, '
                                  f'val_local_loss: {val_local_loss.item():.4f}, val_local_acc: {val_local_acc:.4f},'
                                  f'test_local_acc: {test_local_acc:.4f}, lr: {self.get_lr()}')
             self.log['train_lss'].append(loss.item())
@@ -81,8 +103,8 @@ class Client(ClientModule):
 
                 
 
-    def transfer_to_server(self):
+    def transfer_to_server(self): # 发送到server的数据  sd(shared data): 用于存放client和server可以共享的数据
         self.sd[self.client_id] = {
-            'model': get_state_dict(self.local_model),
-            'train_size': len(self.loader.partition),
+            'local_model': get_state_dict(self.local_model),
+            'client_size': len(self.loader.partition), 
         }
