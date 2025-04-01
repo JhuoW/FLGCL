@@ -30,3 +30,5 @@ FedAvg:
   local_wd: 1.0e-5
   BaseGCL: 'grace'
   proj_act: 'elu'
+
+  n_comm: 100

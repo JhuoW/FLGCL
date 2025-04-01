@@ -8,7 +8,7 @@ class Parser:
 
     def set_arguments(self):
         self.parser.add_argument('--gpu_id', type=int, default='0,1,2')
-        self.parser.add_argument('--seed', type=int, default=1234)
+        self.parser.add_argument('--seed', type=int, default=42)
         self.parser.add_argument('--dataset', type = str, default='Cora')
         self.parser.add_argument('--n_workers', type = int, default=6)
         self.parser.add_argument('--model',  type = str,  default ='FedAvg', choices=['FedAvg', 'FedAux'])

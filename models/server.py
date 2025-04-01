@@ -14,16 +14,23 @@ class Server(ServerModule):
         self.update_lists = []
 
 
-    def on_round_begin(self, curr_rnd):
-        self.round_begin = time.time()
-        self.curr_rnd = curr_rnd
+    def on_communication_begin(self, curr_comm):
+        self.communication_begin = time.time()
+        self.curr_comm = curr_comm
         self.sd['global'] = self.get_global_weights()  # 将server的模型数据加载到sd中
 
-    def on_round_end(self, updated):
+    def on_communication_end(self, updated):  
+        '''
+        updated: 存放一次communication更新过的client id
+        '''
         self.update(updated)
         self.save_state()
     
     def update(self, updated):
+        '''
+        updatad: 一次communication更新过的client ID
+        该方法聚合updated中的client的参数 通过self.aggregate方法聚合，然后赋值给self.global_model
+        '''
         st = time.time()
         local_weights = [] # 存放client上传的数据
         local_client_sizes = []
@@ -39,7 +46,7 @@ class Server(ServerModule):
         ratio = (np.array(local_client_sizes)/np.sum(local_client_sizes)).tolist()  #  [1/10, 1/10, 1/10,..., 1/10]
         # 将clients上的参数依照参数名做加权求和后赋值给server端的global model
         self.set_weights(self.global_model,self.aggregate(local_weights, ratio))  
-        self.logger.print_fl(f'Global model updated in the round: {self.curr_rnd}')
+        self.logger.print_fl(f'Global model updated in the round: {self.curr_comm}')
 
         
     
