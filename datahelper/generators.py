@@ -1,7 +1,7 @@
 import torch
 import random
 import numpy as np
-
+import os
 import metispy as metis
 import os.path as osp
 import torch_geometric
@@ -16,14 +16,17 @@ from ogb.nodeproppred import PygNodePropPredDataset
 
 
 def torch_save(base_dir, filename, data):
-    # base_dir: dataset/Cora/disjoint/n_clients
-    # dataset: Cora
-    fpath = osp(base_dir, filename)    
+    # base_dir: dataset/Cora/disjoint/n_clients 
+    # filename: train.pt
+    # data = {'data': data}
+    os.makedirs(base_dir, exist_ok = True)
+    fpath = osp.join(base_dir, filename)    
     torch.save(data, fpath)
+
 
 def split_train(args, data, ratio_train, n_clients):
     n_data = data.num_nodes
-    ratio_test = (1-ratio_train)/2 # ratio_ratio = 20%, val/test = 40%
+    ratio_test = (1-ratio_train) / 2 # ratio_ratio = 20%, val/test = 40%
     n_train = round(n_data * ratio_train)
     n_test = round(n_data * ratio_test)
     permuted_indices = torch.randperm(n_data)
@@ -37,12 +40,14 @@ def split_train(args, data, ratio_train, n_clients):
     data.train_mask[train_indices] = True
     data.test_mask[test_indices] = True
     data.val_mask[val_indices] = True
-    # dataset/Cora/disjoint/n_clients
-    torch_save(osp(args.data_path, args.dataset, f'{args.mode}/{n_clients}'), 'train.pt', {'data': data})
-    torch_save(osp(args.data_path, args.dataset, f'{args.mode}/{n_clients}'), 'test.pt', {'data': data})
-    torch_save(osp(args.data_path, args.dataset, f'{args.mode}/{n_clients}'), 'val.pt', {'data': data})
+    # dataset/Cora/disjoint/n_clients/train.pt
+    torch_save(osp.join(args.data_path, args.dataset, f'{args.mode}/{n_clients}'), 'train.pt', {'data': data})
+    torch_save(osp.join(args.data_path, args.dataset, f'{args.mode}/{n_clients}'), 'test.pt', {'data': data})
+    torch_save(osp.join(args.data_path, args.dataset, f'{args.mode}/{n_clients}'), 'val.pt', {'data': data})
     print(f'splition done, n_train: {n_train}, n_test: {n_test}, n_val: {len(val_indices)}')
     return data
+
+
 
 class LargestConnectedComponents(BaseTransform):
     r"""Selects the subgraph that corresponds to the
@@ -99,22 +104,24 @@ class DataBuild:
                  seed = 1234):
 
         self.args = args
-        self.ratio_train = ratio_train,
+        self.ratio_train = ratio_train
         self.config = config
         random.seed(seed)
         np.random.seed(seed)
         torch.manual_seed(seed)
-        self.data = self.load_data()
-
-    
-    def load_data(self, n_clients = 0, n_comms = 0, n_clien_per_comm = 0):  
+        # self.data = self.load_data()
         data, dataset = get_data(self.args.dataset, self.args.data_path)
-        splited_data = split_train(self.args, data, self.ratio_train, n_clients = n_clients if self.args.mode == 'disjoint' else n_comms * n_clien_per_comm)
+        self.oridata = data
+        self.oridataset = dataset
         self.num_feats = data.num_features
         self.num_classes = dataset.num_classes
-        return splited_data
 
-    def split_subgraphs(self, n_clients = 10, n_comms = 5, n_clien_per_comm = 2):
+    
+    def load_data(self, n_clients = 0, n_comms = 0, n_clien_per_comm = 0):   # n_clients = [5, 10, 20]
+        splited_data = split_train(self.args, self.oridata, self.ratio_train, n_clients = n_clients if self.args.mode == 'disjoint' else n_comms * n_clien_per_comm)
+        self.data = splited_data
+
+    def split_subgraphs(self, n_clients = 10, n_comms = 5, n_clien_per_comm = 2):  # n_clients = 5, 10, 20
         nx_G = to_networkx(self.data)
         # membership indicate每个节点的cluster idx
         n_cuts, membership = metis.part_graph(nx_G, n_clients if self.args.mode == 'disjoint' else n_comms)  # partiton graph to n_clients subgraph, with minimal number of cross-partition edges
@@ -148,7 +155,7 @@ class DataBuild:
                                     test_mask = client_test_mask)
                 assert torch.sum(client_train_mask).item() > 0
                 # 保存每个client
-                torch_save(osp(self.args.data_path, self.args.dataset, f'{self.args.mode}/{n_clients}'), f'partition_{client_id}.pt', {
+                torch_save(osp.join(self.args.data_path, self.args.dataset, f'{self.args.mode}/{n_clients}'), f'partition_{client_id}.pt', {
                         'client_data': client_subgraph,
                         'client_id': client_id})
                 print(f'client_id: {client_id}, n_train_node: {client_num_nodes}, n_train_edge: {client_num_edges}')
@@ -185,7 +192,7 @@ class DataBuild:
                     )
                     assert torch.sum(client_train_mask).item() > 0
                     # 每个community有5个互相有重叠部分的clients 母目录为从client数量 比如有2个community，那么就有10个client 然后client文件是逐个编号的，前5个是在一个comm内，后5个在一个comm内
-                    torch_save(osp(self.args.data_path, self.args.dataset, f'{self.args.mode}/{n_comms * n_clien_per_comm}'), f'partition_{comm_id*n_clien_per_comm+client_id}.pt', {
+                    torch_save(osp.join(self.args.data_path, self.args.dataset, f'{self.args.mode}/{n_comms * n_clien_per_comm}'), f'partition_{comm_id*n_clien_per_comm+client_id}.pt', {
                         'client_data': client_subgraph,
                         'client_id': client_id})
                     print(f'client_id: {comm_id*n_clien_per_comm+client_id}, n_train_node: {client_num_nodes}, n_train_edge: {client_num_edges}')

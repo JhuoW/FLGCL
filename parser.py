@@ -7,10 +7,10 @@ class Parser:
         self.set_arguments()
 
     def set_arguments(self):
-        self.parser.add_argument('--gpu_id', type=int, default='0,1,2')
+        self.parser.add_argument('--gpu_ids', type=str, default='0,1')
         self.parser.add_argument('--seed', type=int, default=42)
         self.parser.add_argument('--dataset', type = str, default='Cora')
-        self.parser.add_argument('--n_workers', type = int, default=6)
+        self.parser.add_argument('--n_workers', type = int, default=10)
         self.parser.add_argument('--model',  type = str,  default ='FedAvg', choices=['FedAvg', 'FedAux'])
         self.parser.add_argument('--data_path', type = str, default='datasets')
         self.parser.add_argument('--mode', type=str, default='disjoint', choices=['disjoint', 'overlapping'])

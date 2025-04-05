@@ -133,7 +133,7 @@ class ClientModule:
         self.local_model.eval()
         y_hat = self.local_model(batch)
         if torch.sum(mask).item() == 0: return y_hat, 0.0
-        lss = self.loss(y_hat[mask], batch.y[mask])
+        lss = self.loss_func(y_hat[mask], batch.y[mask])
         return y_hat, lss.item()
 
     @torch.no_grad()
@@ -165,12 +165,12 @@ class ClientModule:
 
 
 class ServerModule:
-    def __init__(self, args, config, sd, gpu_id):
+    def __init__(self, args, config, sd, gpu_server):
         self.args = args
         self._args = vars(self.args)
         self.config = config
         self.sd = sd
-        self.gpu_id = gpu_id
+        self.gpu_id = gpu_server
         self.logger = Logger(args=self.args, gpu_id = self.gpu_id, is_server = True)
     
 

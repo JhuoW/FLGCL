@@ -23,7 +23,7 @@ class DataLoader:
 
 def load_data(base_dir, filename):
     fpath = osp.join(base_dir, filename)
-    return torch.load(fpath, map_location=torch.device('cpu'))
+    return torch.load(fpath, map_location=torch.device('cpu'), weights_only=False)
 
 def get_data(args, client_id):
     return [
