@@ -25,7 +25,7 @@ FedAvg:
    
   hidden_heads: 8
 
-  local_epochs: 200
+  local_epochs: 1
   local_lr: 5.0e-4
   local_wd: 1.0e-5
   BaseGCL: 'grace'

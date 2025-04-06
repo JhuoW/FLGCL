@@ -58,7 +58,7 @@ def torch_save(base_dir, filename, data):
 
 def torch_load(base_dir, filename):
     fpath = os.path.join(base_dir, filename)    
-    return torch.load(fpath, map_location=torch.device('cpu'))
+    return torch.load(fpath, map_location=torch.device('cpu'), weights_only=False)
 
 
 def from_networkx(G, group_node_attrs=None, group_edge_attrs=None):

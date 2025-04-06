@@ -43,8 +43,8 @@ class Client(ClientModule):
         
 
     def load_state(self):
-        state = torch_load(osp.join(self.args.checkpt_path, f'{self.client_id}_state.pt'))
-        set_state_dict(self.local_model, state['model'], self.gpu_id) # 加载模型参数
+        state = torch_load(self.args.checkpt_path, f'{self.client_id}_state.pt')
+        set_state_dict(self.local_model, state['local_model'], self.gpu_id) # 加载模型参数
         self.optimizer.load_state_dict(state['optimizer'])  # 加载优化器参数
         self.log = state['log']  # 加载日志        
 
@@ -78,8 +78,8 @@ class Client(ClientModule):
         val_local_acc, val_local_loss = self.validate(mode = 'val')
         test_local_acc, test_local_loss = self.validate(mode = 'test')        
         self.logger.print_fl(    # 打印当前client的信息
-            f'communication: {self.curr_comm+1}, ep: {0}, '
-            f'val_local_acc: {val_local_acc:.4f}, val_local_loss: {val_local_loss:.4f}, lr: {self.get_lr()} '
+            f'Communication: {self.curr_comm+1}, ep: {0}, '
+            f'val_local_loss: {val_local_loss:.4f}, val_local_acc: {val_local_acc:.4f}, test_local_acc: {test_local_acc:.4f}, lr: {self.get_lr()} '
         )
         self.log['ep_local_val_acc'].append(val_local_acc)
         self.log['ep_local_val_loss'].append(val_local_loss)
@@ -99,7 +99,7 @@ class Client(ClientModule):
                 self.optimizer.step()
             val_local_acc, val_local_loss = self.validate(mode = 'val')
             test_local_acc, test_local_loss = self.validate(mode = 'test')
-            self.logger.print_fl(f'communication:{self.curr_comm+1}, ep:{ep+1}, '
+            self.logger.print_fl(f'Communication: {self.curr_comm+1}, ep: {ep+1}, '
                                  f'val_local_loss: {val_local_loss:.4f}, val_local_acc: {val_local_acc:.4f},'
                                  f'test_local_acc: {test_local_acc:.4f}, lr: {self.get_lr()}')
             self.log['train_lss'].append(loss.item())

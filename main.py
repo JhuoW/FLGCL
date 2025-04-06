@@ -24,9 +24,6 @@ def main(args, config):
     pp = ParentProcess(args, config, Server, Client)
     pp.start() # 开启主进程
 
-    
-    
-
 
 if __name__ == '__main__':
     args = Parser().parse()

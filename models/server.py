@@ -68,7 +68,7 @@ class Server(ServerModule):
         }
 
     def save_state(self):
-        torch.save(self.args.checkpt_path, 'server_state.pt', {
+        torch_save(self.args.checkpt_path, 'server_state.pt', {
             'global_model': get_state_dict(self.global_model),
 
         })
