@@ -13,21 +13,22 @@ dataset:
 
 
 FedAvg:
-  gnn_hid_dim: 48
+  gnn_hid_dim: 64
   gnn_out_dim: 128
   gnn_act: 'relu'
   BaseGNN: 'GCNConv'
+  Backbone: 'GCN'  # NLGNN
   n_gnn_layers: 2
-  num_proj_hidden: 128
+  num_proj_hidden: 64
   kernel: 5
   dropout1: 0.5
   dropout2: 0.5
    
   hidden_heads: 8
 
-  local_epochs: 1
-  local_lr: 5.0e-4
-  local_wd: 1.0e-5
+  local_epochs: 80
+  local_lr: 0.01
+  local_wd: 5.0e-5
   BaseGCL: 'grace'
   proj_act: 'elu'
 

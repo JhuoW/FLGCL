@@ -5,85 +5,6 @@ from importlib import import_module
 import torch_geometric.nn as pyg_nn
 from torch_geometric.nn import GCNConv, GATConv
 
-# class GCN(nn.Module):
-#     def __init__(self, n_feat=10, n_dims=128, n_clss=10, args=None):
-#         super().__init__()
-#         self.n_feat = n_feat
-#         self.n_dims = n_dims
-#         self.n_clss = n_clss
-#         self.args = args
-
-#         self.conv1 = GCNConv(self.n_feat, self.n_dims, cached=False)
-#         self.conv2 = GCNConv(self.n_dims, self.n_dims, cached=False)
-#         self.clsif = nn.Linear(self.n_dims, self.n_clss)
-
-#     def forward(self, data):
-#         x, edge_index, edge_weight = data.x, data.edge_index, data.edge_attr
-#         x = F.relu(self.conv1(x, edge_index, edge_weight))
-#         x = F.dropout(x, training=self.training)
-#         x = self.conv2(x, edge_index, edge_weight)
-#         x = F.relu(x)
-#         x = F.dropout(x, training=self.training)
-#         x = self.clsif(x)
-#         return x
-    
-# class Encoder(nn.Module):
-#     def __init__(self, in_dim: int, hid_dim: int, out_dim: int, activation, BaseModel=GCNConv, k: int = 2) :
-#         super(Encoder, self).__init__()
-#         self.k = k
-#         self.conv_list = nn.ModuleList()
-#         # self.conv_list.append(BaseModel(in_channels, 2 * out_channels))
-#         for i in range(k):  # 0, 1
-#             if i == k-1:
-#                 hid_dim = out_dim
-#             self.conv_list.append(BaseModel(in_dim, hid_dim))
-#             in_dim = hid_dim
-#         self.activation = activation
-
-#     def forward(self, x: torch.Tensor, edge_index: torch.Tensor):
-#         for i in range(self.k):
-#             x = self.activation(self.conv_list[i](x, edge_index))
-#         return x
-
-# class Augmentator(nn.Module):
-#     def __init__(self, *args, **kwargs):
-#         super().__init__(*args, **kwargs)
-
-# class GRACE(nn.Module):
-#     def __init__(self, config):
-#         super(GRACE, self).__init__()
-#         self.config = config
-#         gnn_hid_dim = config['gnn_hid_dim']
-#         gnn_out_dim = config['gnn_out_dim']
-#         gnn_act = ({'relu': F.relu, 'prelu': nn.PReLU(), 'elu': F.elu})[config['gnn_act']]
-#         BaseGNN = getattr(pyg_nn, config.get('BaseGNN', 'GCNConv'))
-#         n_gnn_layers = config['n_gnn_layers']
-#         num_proj_hidden = config['num_proj_hidden']
-#         in_dim  = config['num_feats']
-#         self.encoder = Encoder(in_dim, gnn_hid_dim, gnn_out_dim, gnn_act, BaseGNN, k = n_gnn_layers)
-
-#         self.fc1 = torch.nn.Linear(gnn_out_dim, num_proj_hidden)
-#         self.fc2 = torch.nn.Linear(num_proj_hidden, gnn_out_dim)
-
-#     def forward(self, x, edge_index):
-#         emb = self.encoder(x, edge_index)
-#         z = self.projection(emb, proj_act=self.config['proj_act'])
-#         return emb, z
-    
-#     def projection(self, z, proj_act = 'elu'):
-#         z = getattr(F, proj_act)(self.fc1(z))
-#         return self.fc2(z)
-
-#     def loss_func(self, z1: torch.Tensor, z2: torch.Tensor, mean: bool = True, batch_size: int = 0):
-#         if batch_size == 0:
-#             l1 = self.semi_loss(z1, z2)
-#             l2 = self.semi_loss(z2, z1)
-#         else:
-#             l1 = self.batched_semi_loss(z1, z2, batch_size)
-#             l2 = self.batched_semi_loss(z2, z1, batch_size)        
-#         ret = (l1 + l2) * 0.5
-#         ret = ret.mean() if mean else ret.sum()
-#         return ret
 
 
 class NLGNN(nn.Module):
@@ -230,18 +151,106 @@ class NLGNN2(nn.Module):
 
         
 class GCN(torch.nn.Module):
-    def __init__(self, n_gnn_layers, in_dim, hid_dim, out_dim, kernel, dropout1, dropout2):
+    def __init__(self, config):
         super().__init__()
-        self.conv1 = GCNConv(in_dim, hid_dim, normalize= False)
-        self.conv2 = GCNConv(hid_dim, out_dim,
-                             normalize=False)
-        self.dropout1 = dropout1
+        self.conv1 = GCNConv(config['num_feats'], config['gnn_hid_dim'])
+        self.conv2 = GCNConv(config['gnn_hid_dim'], config['gnn_hid_dim'])
+        self.dropout1 = config['dropout1']
+        self.projection = nn.Linear(config['gnn_hid_dim'], config['num_cls'])
         
 
-    def forward(self, x, edge_index, edge_weight=None):
-        x = F.dropout(x, p=self.dropout1, training=self.training)
-        x = self.conv1(x, edge_index, edge_weight).relu()
-        x = F.dropout(x, p=self.dropout1, training=self.training)
-        x = self.conv2(x, edge_index, edge_weight)
-        return x
+    def forward(self, data):
+        # x = F.dropout(x, p=self.dropout1, training=self.training)
+        x, edge_index  = data.x, data.edge_index
+        h = self.conv1(x, edge_index)
+        h = F.relu(h)
+        h = F.dropout(h, p=self.dropout1, training=self.training)
+        h = self.conv2(h, edge_index)
+        h = F.relu(h)
+        h = F.dropout(h, p=self.dropout1, training=self.training)
+        h = self.projection(h)
+        return h
+
+
+
+
+
+# class GCN(nn.Module):
+#     def __init__(self, n_feat=10, n_dims=128, n_clss=10, args=None):
+#         super().__init__()
+#         self.n_feat = n_feat
+#         self.n_dims = n_dims
+#         self.n_clss = n_clss
+#         self.args = args
+
+#         self.conv1 = GCNConv(self.n_feat, self.n_dims, cached=False)
+#         self.conv2 = GCNConv(self.n_dims, self.n_dims, cached=False)
+#         self.clsif = nn.Linear(self.n_dims, self.n_clss)
+
+#     def forward(self, data):
+#         x, edge_index, edge_weight = data.x, data.edge_index, data.edge_attr
+#         x = F.relu(self.conv1(x, edge_index, edge_weight))
+#         x = F.dropout(x, training=self.training)
+#         x = self.conv2(x, edge_index, edge_weight)
+#         x = F.relu(x)
+#         x = F.dropout(x, training=self.training)
+#         x = self.clsif(x)
+#         return x
     
+# class Encoder(nn.Module):
+#     def __init__(self, in_dim: int, hid_dim: int, out_dim: int, activation, BaseModel=GCNConv, k: int = 2) :
+#         super(Encoder, self).__init__()
+#         self.k = k
+#         self.conv_list = nn.ModuleList()
+#         # self.conv_list.append(BaseModel(in_channels, 2 * out_channels))
+#         for i in range(k):  # 0, 1
+#             if i == k-1:
+#                 hid_dim = out_dim
+#             self.conv_list.append(BaseModel(in_dim, hid_dim))
+#             in_dim = hid_dim
+#         self.activation = activation
+
+#     def forward(self, x: torch.Tensor, edge_index: torch.Tensor):
+#         for i in range(self.k):
+#             x = self.activation(self.conv_list[i](x, edge_index))
+#         return x
+
+# class Augmentator(nn.Module):
+#     def __init__(self, *args, **kwargs):
+#         super().__init__(*args, **kwargs)
+
+# class GRACE(nn.Module):
+#     def __init__(self, config):
+#         super(GRACE, self).__init__()
+#         self.config = config
+#         gnn_hid_dim = config['gnn_hid_dim']
+#         gnn_out_dim = config['gnn_out_dim']
+#         gnn_act = ({'relu': F.relu, 'prelu': nn.PReLU(), 'elu': F.elu})[config['gnn_act']]
+#         BaseGNN = getattr(pyg_nn, config.get('BaseGNN', 'GCNConv'))
+#         n_gnn_layers = config['n_gnn_layers']
+#         num_proj_hidden = config['num_proj_hidden']
+#         in_dim  = config['num_feats']
+#         self.encoder = Encoder(in_dim, gnn_hid_dim, gnn_out_dim, gnn_act, BaseGNN, k = n_gnn_layers)
+
+#         self.fc1 = torch.nn.Linear(gnn_out_dim, num_proj_hidden)
+#         self.fc2 = torch.nn.Linear(num_proj_hidden, gnn_out_dim)
+
+#     def forward(self, x, edge_index):
+#         emb = self.encoder(x, edge_index)
+#         z = self.projection(emb, proj_act=self.config['proj_act'])
+#         return emb, z
+    
+#     def projection(self, z, proj_act = 'elu'):
+#         z = getattr(F, proj_act)(self.fc1(z))
+#         return self.fc2(z)s
+
+#     def loss_func(self, z1: torch.Tensor, z2: torch.Tensor, mean: bool = True, batch_size: int = 0):
+#         if batch_size == 0:
+#             l1 = self.semi_loss(z1, z2)
+#             l2 = self.semi_loss(z2, z1)
+#         else:
+#             l1 = self.batched_semi_loss(z1, z2, batch_size)
+#             l2 = self.batched_semi_loss(z2, z1, batch_size)        
+#         ret = (l1 + l2) * 0.5
+#         ret = ret.mean() if mean else ret.sum()
+#         return ret

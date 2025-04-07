@@ -59,7 +59,7 @@ if __name__ == '__main__':
             for n_comms in dataset_config['comms']:
                 databuild.split_subgraphs(n_comms=n_comms, n_clien_per_comm=dataset_config['n_clien_per_comm'])
         else:
-            raise ValueError('No Mode (disjoint/Overlapping)')
+            raise ValueError('No Mode (Disjoint/Overlapping)')
     else:
         print('Clients Exists')
         
@@ -71,7 +71,7 @@ if __name__ == '__main__':
         set_random_seed(config['seed'])
         logger.log ("Seed set. %d" % (config['seed']))
     now = datetime.now().strftime("%Y%m%d_%H%M%S")
-    trial = osp.join(f'{args.dataset}', f'{args.mode}', f'{args.n_clients}', f'{now}_{args.model}')
+    trial = osp.join(f'{args.dataset}', f'{args.mode}', f'{args.n_clients}', f'{now}_{args.model}_{config["Backbone"]}')
     args.checkpt_path = f'checkpoints/{trial}'
     args.log_path = f'logs/{trial}'
 

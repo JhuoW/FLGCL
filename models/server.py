@@ -10,14 +10,10 @@ class Server(ServerModule):
         sd: 存放所有clients的模型数据和server的模型数据
         '''
         super(Server, self).__init__(args, config, sd, gpu_server)
-        self.global_model = NLGNN(config).cuda(self.gpu_id)
-        # self.global_model = GCN(n_gnn_layers=config['n_gnn_layers'], 
-        #                        in_dim=config['num_feats'], 
-        #                        hid_dim=config['gnn_hid_dim'], 
-        #                        out_dim=config['num_cls'],
-        #                        kernel=config['kernel'],
-        #                        dropout1=config['dropout1'],
-        #                        dropout2=config['dropout2']).cuda(self.gpu_id)
+        if config['Backbone'] == 'NLGNN':
+            self.global_model = NLGNN(config).cuda(self.gpu_id)
+        elif config['Backbone'] == 'GCN':
+            self.global_model = GCN(config).cuda(self.gpu_id)
         self.update_lists = []
 
 

@@ -13,21 +13,11 @@ class Client(ClientModule):
         sd: 当前client中和server shared data (对于FedAvg来说是模型参数和模型size)
         '''
         super(Client, self).__init__(args, config, work_id, gpu_id, sd)
-        self.local_model = NLGNN(config).cuda(gpu_id)
-        # self.local_model = NLGNN2(n_gnn_layers=config['n_gnn_layers'], 
-        #                           in_dim=config['num_feats'], 
-        #                           hid_dim=config['gnn_hid_dim'], 
-        #                           out_dim=config['num_cls'],
-        #                           kernel=config['kernel'],
-        #                           dropout1=config['dropout1'],
-        #                           dropout2=config['dropout2']).cuda(gpu_id)
-        # self.local_model = GCN(n_gnn_layers=config['n_gnn_layers'], 
-        #                        in_dim=config['num_feats'], 
-        #                        hid_dim=config['gnn_hid_dim'], 
-        #                        out_dim=config['num_cls'],
-        #                        kernel=config['kernel'],
-        #                        dropout1=config['dropout1'],
-        #                        dropout2=config['dropout2']).cuda(gpu_id)
+        if config['Backbone'] == 'NLGNN':
+            self.local_model = NLGNN(config).cuda(gpu_id)
+
+        elif config['Backbone'] == 'GCN':
+            self.local_model = GCN(config).cuda(gpu_id)
         # self.local_model = MaskedGCN(config['num_feats'], 128, config['num_cls'], 0.001, self.args).cuda(gpu_id)
         self.parameters = list(self.local_model.parameters())
 
@@ -86,7 +76,7 @@ class Client(ClientModule):
         self.log['ep_local_test_acc'].append(test_local_acc)
         self.log['ep_local_test_loss'].append(test_local_loss)
 
-        self.local_model.reset_parameters()
+        # self.local_model.reset_parameters()
 
         for ep in range(self.config['local_epochs']):
             self.local_model.train()
@@ -100,7 +90,7 @@ class Client(ClientModule):
             val_local_acc, val_local_loss = self.validate(mode = 'val')
             test_local_acc, test_local_loss = self.validate(mode = 'test')
             self.logger.print_fl(f'Communication: {self.curr_comm+1}, ep: {ep+1}, '
-                                 f'val_local_loss: {val_local_loss:.4f}, val_local_acc: {val_local_acc:.4f},'
+                                 f'val_local_loss: {val_local_loss:.4f}, val_local_acc: {val_local_acc:.4f}, '
                                  f'test_local_acc: {test_local_acc:.4f}, lr: {self.get_lr()}')
             self.log['train_lss'].append(loss.item())
             self.log['ep_local_val_acc'].append(val_local_acc)
