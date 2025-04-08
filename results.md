@@ -1,3 +1,3 @@
 ## Cora Client 10
 
-FedAvg + GCN:
+FedAvg + GCN: 80.77

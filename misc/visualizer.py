@@ -109,7 +109,7 @@ def summary(models, upto, target_acc, target_comm):
     lval = get_acc_over_communication(models, upto, eval_type = 'val')
 
     for model in models:
-        local_test_acc = ltest[model['name']]['y']  # 当前模型在所有communication上所有client的平均测试精度
+        local_test_acc = ltest[model['name']]['y']  # 当前模型在所有communication上所有client的平均测试精度, 例如第i个communication上10个client的平均精度
         local_val_acc = lval[model['name']]['y']
         local_val_acc_all = lval[model['name']]['y_all']  # 每个communication上，所有client的平均精度
         local_test_acc_all = ltest[model['name']]['y_all']
