@@ -1,6 +1,3 @@
-dataset: "AIDS700nef"
-
-
 dataset:
   # for disjoint
   ratio_train: 0.2
@@ -33,3 +30,18 @@ FedAvg:
   proj_act: 'elu'
 
   n_comm: 100
+
+FedAux:
+  gnn_hid_dim: 64
+  gnn_out_dim: 128
+  gnn_act: 'relu'
+  BaseGNN: 'GCNConv'
+  Backbone: 'NLGNN'  # NLGNN
+
+  n_gnn_layers: 2
+  num_proj_hidden: 64
+  local_epochs: 1
+  local_lr: 0.01
+  local_wd: 5.0e-5
+
+  n_comm: 100 

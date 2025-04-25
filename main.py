@@ -27,7 +27,6 @@ def main(args, config):
 
 if __name__ == '__main__':
     args = Parser().parse()
-    # torch.cuda.set_device(args.gpu_id)
     logger = Logger(args=args, mode = [print])  
     logger.add_line = lambda : logger.log("-" * 50)
     logger.log(" ".join(sys.argv))

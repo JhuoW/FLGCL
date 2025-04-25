@@ -6,50 +6,7 @@ from datahelper.loader import DataLoader
 import os.path as osp
 from misc.utils import *
 import numpy as np
-import functools
-from sklearn.preprocessing import normalize, OneHotEncoder
-from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import GridSearchCV
-from sklearn.multiclass import OneVsRestClassifier
-from sklearn.metrics import f1_score
 from misc.logger import Logger
-
-
-def prob_to_one_hot(y_pred):
-    ret = np.zeros(y_pred.shape, np.bool)
-    indices = np.argmax(y_pred, axis=1)
-    for i in range(y_pred.shape[0]):
-        ret[i][indices[i]] = True
-    return ret
-
-# @repeat(3)
-def classification_LR(embeddings, batch, mode):
-    X = embeddings.detach().cpu().numpy()
-    Y = batch.y.detach().cpu().numpy()
-    Y = Y.reshape(-1, 1)
-    onehot_encoder = OneHotEncoder(categories='auto').fit(Y)    
-    Y = onehot_encoder.transform(Y).toarray().astype(np.bool)
-    X = normalize(X, norm='l2')
-    eval_mask = batch.val_mask if mode == 'val' else  batch.test_mask
-    X_train = X[batch.train_mask]
-    X_test  = X[eval_mask]
-    y_train = Y[batch.train_mask]
-    y_test  = Y[eval_mask]    
-    logreg = LogisticRegression(solver='liblinear')
-    c = 2.0 ** np.arange(-10, 10)    
-    clf = GridSearchCV(estimator=OneVsRestClassifier(logreg),
-                       param_grid=dict(estimator__C=c), n_jobs=8, cv=5,
-                       verbose=0)
-    clf.fit(X_train, y_train)
-    y_pred = clf.predict_proba(X_test)
-    y_pred = prob_to_one_hot(y_pred)    
-    micro = f1_score(y_test, y_pred, average="micro")
-    macro = f1_score(y_test, y_pred, average="macro")
-    return {
-        'Acc': micro,
-        'F1Macro': macro
-    }
-
 
 class ClientModule:
     def __init__(self, args, config, work_id, gpu_id, sd):
@@ -103,28 +60,6 @@ class ClientModule:
             # 预测logits, 真实stacked labels
             acc = self.accuracy(torch.stack(pred).view(-1, self.config['num_cls']), torch.stack(target).view(-1))
         return acc, np.mean(loss)
-
-    @torch.no_grad()
-    def eval_LR(self, mode='test'):
-        loader = self.loader.patition_loader  # client loader， 每次加载一个client
-        with torch.no_grad():
-            for _, batch in enumerate(loader):
-                batch = batch.cuda()
-                if self.config['BaseGCL'] == 'grace':
-                    emb, _ = self.local_model(batch.x, batch.edge_index)
-                    def repeat(n_times = 3):
-                        stats = []
-                        for _ in range(n_times):
-                            results = classification_LR(emb, batch, mode)
-                            stats.append(results)
-                        acc_avg = np.mean(np.array([d['Acc'] for d in stats]))
-                        acc_std = np.std(np.array([d['Acc'] for d in stats]))
-                        ma_avg = np.mean(np.array([d['F1Macro'] for d in stats]))
-                        ma_std = np.std(np.array([d['F1Macro'] for d in stats]))
-                        stats_results = {'acc_avg': acc_avg, 'acc_std': acc_std, 'f1ma_avg':ma_avg, 'f1ma_std':ma_std}
-                        return stats_results
-                    stats_results = repeat()
-        return stats_results
 
 
 

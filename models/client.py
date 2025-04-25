@@ -1,5 +1,5 @@
 from models.federated import ClientModule
-from models.nets import NLGNN, NLGNN2, GCN
+from models.nets import NLGNN, GCN
 from models.fedpubnets import MaskedGCN
 import torch
 import torch.nn as nn
@@ -51,6 +51,7 @@ class Client(ClientModule):
         self.update(self.sd['global']) # 传入global server的信息 并将global的模型信息拷贝给local模型
 
     def update(self, received):
+        self.prev_w = convert_np_to_tensor(received['model'], self.gpu_id) # 
         # received['model']是global server的模型参数
         set_state_dict(self.local_model, received['model'], self.gpu_id, skip_stat = True) # 将server端的global参数赋值给client
 

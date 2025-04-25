@@ -7,7 +7,7 @@ class Parser:
         self.set_arguments()
 
     def set_arguments(self):
-        self.parser.add_argument('--gpu_ids', type=str, default='0,1')
+        self.parser.add_argument('--gpu_ids', type=str, default='0,1,2')
         self.parser.add_argument('--seed', type=int, default=42)
         self.parser.add_argument('--dataset', type = str, default='Cora')
         self.parser.add_argument('--n_workers', type = int, default=10)
